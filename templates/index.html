@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stock Price Predictor</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .input-container {
+            margin-bottom: 20px;
+        }
+        input, button {
+            padding: 8px;
+            margin: 5px;
+        }
+        #predictions {
+            margin-top: 20px;
+        }
+        #error {
+            color: red;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Stock Price Predictor</h1>
+    
+    <div class="input-container">
+        <input type="text" id="symbol" placeholder="Stock Symbol (e.g., AAPL)" value="AAPL">
+        <input type="number" id="days" placeholder="Days to predict" value="30" min="1" max="365">
+        <button onclick="makePrediction()">Predict</button>
+    </div>
+
+    <div id="error"></div>
+    <div id="plot"></div>
+    <div id="predictions"></div>
+
+    <script>
+        function makePrediction() {
+            const symbol = document.getElementById('symbol').value;
+            const days = document.getElementById('days').value;
+            
+            $('#error').hide();
+            $('#predictions').html('<p>Loading prediction...</p>');
+            
+            $.ajax({
+                url: '/predict',
+                method: 'POST',
+                data: {
+                    symbol: symbol,
+                    days: days
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // Display plot
+                        Plotly.newPlot('plot', JSON.parse(response.plot));
+                        
+                        // Display predictions
+                        let predictionsHtml = '<h3>Next 7 Days Predictions:</h3><ul>';
+                        response.predictions.forEach(pred => {
+                            predictionsHtml += `<li>${pred.date}: ${pred.price}</li>`;
+                        });
+                        predictionsHtml += '</ul>';
+                        $('#predictions').html(predictionsHtml);
+                    } else {
+                        $('#error').text('Error: ' + response.error).show();
+                        $('#predictions').html('');
+                    }
+                },
+                error: function() {
+                    $('#error').text('Server error occurred').show();
+                    $('#predictions').html('');
+                }
+            });
+        }
+    </script>
+</body>
+</html>
