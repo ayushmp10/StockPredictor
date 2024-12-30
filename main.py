@@ -1,75 +1,120 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
 import yfinance as yf
+from prophet import Prophet
+import plotly.graph_objects as go
+from datetime import date, timedelta
 import pandas as pd
-# Fetch historical data for Apple Inc.
-ticker = 'AAPL'
-data = yf.download(ticker)
-# Display the first few rows of the dataset
-print(data.tail())
 
-# Calculate moving averages
-data['MA_10'] = data['Close'].rolling(window=10).mean()
-data['MA_50'] = data['Close'].rolling(window=50).mean()
-# Drop NaN values
-data = data.dropna()
-# Define features and target
-X = data[['Close', 'MA_10', 'MA_50']]
-y = data['Close'].shift(-1).dropna()
-X = X[:-1]
-# Split data into training and testing sets
-from sklearn.model_selection import train_test_split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+class StockPredictorApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Stock Price Predictor")
+        self.root.geometry("800x600")
 
-from sklearn.linear_model import LinearRegression
-# Initialize and train the model
-model = LinearRegression()
-model.fit(X_train, y_train)
-# Make predictions
-predictions = model.predict(X_test)
-# Evaluate the model
-from sklearn.metrics import mean_squared_error, r2_score
-mse = mean_squared_error(y_test, predictions)
-r2 = r2_score(y_test, predictions)
-print(f'Mean Squared Error: {mse}')
-print(f'R² Score: {r2}')
+        # Create input frame
+        input_frame = ttk.Frame(root, padding="10")
+        input_frame.pack(fill=tk.X)
 
-# Visualize results
-# TODO: Clean this up if possible
-# import matplotlib.pyplot as plt
-# plt.figure(figsize=(14, 7))
-# plt.plot(y_test.index, y_test.values, label='Actual Price')
-# plt.plot(y_test.index, predictions, label='Predicted Price')
-# plt.xlabel('Date')
-# plt.ylabel('Price')
-# plt.title('Actual vs. Predicted Stock Prices')
-# plt.legend()
-# plt.show()
+        # Stock symbol input
+        ttk.Label(input_frame, text="Enter Stock Symbol:").pack(side=tk.LEFT)
+        self.stock_symbol = ttk.Entry(input_frame, width=10)
+        self.stock_symbol.insert(0, "AAPL")
+        self.stock_symbol.pack(side=tk.LEFT, padx=5)
 
-# Trading Strategy
-# TODO: Use the predicted prices for display in a web app
-initial_balance = 10000  # Starting balance in USD
-balance = initial_balance
-position = 0  # Number of shares
+        # Prediction days input
+        ttk.Label(input_frame, text="Days to predict:").pack(side=tk.LEFT, padx=5)
+        self.prediction_days = ttk.Entry(input_frame, width=5)
+        self.prediction_days.insert(0, "30")
+        self.prediction_days.pack(side=tk.LEFT)
 
-for i in range(len(X_test)):
-    current_price = float(X_test.iloc[i]['Close'])
-    predicted_price = float(predictions[i])
+        # Predict button
+        ttk.Button(input_frame, text="Predict", command=self.make_prediction).pack(side=tk.LEFT, padx=10)
 
-    if predicted_price > current_price and balance >= current_price:
-        # Buy stock
-        shares_to_buy = int(balance // current_price)  # Buy whole shares only
-        if shares_to_buy > 0:  # Ensure we are buying at least one share
-            position += shares_to_buy
-            balance -= shares_to_buy * current_price
-            print(f"Buying {shares_to_buy} shares at {current_price:.2f}")
+    def load_data(self, symbol):
+        stock = yf.Ticker(symbol)
+        data = stock.history(period="2y")
+        return data
 
-    elif predicted_price < current_price and position > 0:
-        # Sell stock
-        balance += position * current_price
-        print(f"Selling {position} shares at {current_price:.2f}")
-        position = 0
+    def make_prediction(self):
+        try:
+            symbol = self.stock_symbol.get().upper()
+            days = int(self.prediction_days.get())
+            
+            # Load data
+            data = self.load_data(symbol)
+            
+            # Prepare data for Prophet and remove timezone
+            df_prophet = data.reset_index()[["Date", "Close"]]
+            df_prophet.columns = ["ds", "y"]
+            df_prophet['ds'] = df_prophet['ds'].dt.tz_localize(None)  # Remove timezone info
+            
+            # Create and fit model
+            model = Prophet(daily_seasonality=True)
+            model.fit(df_prophet)
+            
+            # Make predictions
+            future_dates = model.make_future_dataframe(periods=days)
+            forecast = model.predict(future_dates)
+            
+            # Create plot
+            fig = go.Figure()
+            
+            # Add actual values
+            fig.add_trace(go.Scatter(
+                x=df_prophet["ds"],
+                y=df_prophet["y"],
+                name="Actual",
+                line=dict(color="blue")
+            ))
+            
+            # Add predicted values
+            fig.add_trace(go.Scatter(
+                x=forecast["ds"],
+                y=forecast["yhat"],
+                name="Predicted",
+                line=dict(color="orange")
+            ))
+            
+            # Add prediction intervals
+            fig.add_trace(go.Scatter(
+                x=forecast["ds"],
+                y=forecast["yhat_upper"],
+                fill=None,
+                line=dict(color="rgba(255,127,14,0.3)"),
+                name="Upper Bound"
+            ))
+            
+            fig.add_trace(go.Scatter(
+                x=forecast["ds"],
+                y=forecast["yhat_lower"],
+                fill="tonexty",
+                line=dict(color="rgba(255,127,14,0.3)"),
+                name="Lower Bound"
+            ))
+            
+            fig.update_layout(
+                title=f"{symbol} Stock Price Prediction",
+                xaxis_title="Date",
+                yaxis_title="Price",
+                hovermode="x unified"
+            )
+            
+            # Show the plot in browser
+            fig.show()
+            
+            # Show next 7 days predictions in a popup
+            future_predictions = forecast[["ds", "yhat"]].tail(7)
+            prediction_text = "Predictions for next 7 days:\n\n"
+            for _, row in future_predictions.iterrows():
+                prediction_text += f"{row['ds'].strftime('%Y-%m-%d')}: ${row['yhat']:.2f}\n"
+            
+            messagebox.showinfo("Predictions", prediction_text)
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred: {str(e)}")
 
-# Calculate final balance including the value of the remaining shares
-final_balance = balance + (position * X_test.iloc[-1]['Close'])
-profit = final_balance - initial_balance
-print(f"Final balance: ${final_balance:.2f}")
-print(f"Profit: ${profit:.2f}")
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = StockPredictorApp(root)
+    root.mainloop()
