@@ -4,6 +4,7 @@ from prophet import Prophet
 import plotly.graph_objects as go
 import pandas as pd
 import json
+import os
 
 app = Flask(__name__)
 
@@ -107,4 +108,4 @@ def predict():
         })
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
