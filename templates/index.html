@@ -4,28 +4,8 @@
     <title>Stock Price Predictor</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .input-container {
-            margin-bottom: 20px;
-        }
-        input, button {
-            padding: 8px;
-            margin: 5px;
-        }
-        #predictions {
-            margin-top: 20px;
-        }
-        #error {
-            color: red;
-            display: none;
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
     <h1>Stock Price Predictor</h1>

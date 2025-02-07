@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, url_for
 import yfinance as yf
 from prophet import Prophet
 import plotly.graph_objects as go
